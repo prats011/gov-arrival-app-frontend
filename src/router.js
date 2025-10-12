@@ -1,10 +1,11 @@
 import { createRouter, createWebHistory } from "vue-router";
-import Home from "@/views/HomeView.vue";
-import PersonalInformation from "@/views/PersonalInformationView.vue";
-import TripAccomadation from "./views/TripAccomadationView.vue";
-import HealthDeclaration from "./views/HealthDeclarationView.vue";
-import Success from "./views/SuccessView.vue";
-import CommingSoon from "./views/CommingSoonView.vue";
+
+const Home = () => import("@/views/HomeView.vue");
+const PersonalInformation = () => import("@/views/PersonalInformationView.vue");
+const TripAccomadation = () => import("@/views/TripAccomadationView.vue");
+const HealthDeclaration = () => import("@/views/HealthDeclarationView.vue");
+const Success = () => import("@/views/SuccessView.vue");
+const CommingSoon = () => import("@/views/CommingSoonView.vue");
 
 const routes = [
   { path: "/", component: Home },

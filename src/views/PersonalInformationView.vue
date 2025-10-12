@@ -2,11 +2,13 @@
 import { ref, onMounted, inject, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { z } from 'zod';
+import axios from "axios";
 import ProgressBar from '@/components/ProgressBar.vue';
 import infoIcon from '/personalIcon.svg';
 import PassportIcon from '/worldIcon.svg';
 import data_country from '@/assets/dataCountry.json';
 import data_months from '@/assets/dataDate.json';
+
 
 const router = useRouter();
 const count = inject('globalCount');
@@ -35,6 +37,7 @@ const phone_no_code = ref('');
 
 const option_country = ref([]);
 const option_nationality = ref([]);
+const option_country_code = ref([]);
 
 const validationErrors = ref({});
 const showErrors = ref(false);
@@ -53,19 +56,26 @@ const optionalTextInputSchema = z.string()
   .optional()
   .nullable();
 
+const visaNumberSchema = z.string()
+  .trim()
+  .max(80, "Maximum 80 characters allowed")
+  .regex(/^[A-Za-z0-9]*$/, "Only letters and numbers are allowed")
+  .optional()
+  .nullable();
+
 const dropdownSchema = z.any().refine(val => val !== '' && val !== null && val !== undefined, "Please select an option");
 
 const phoneCodeSchema = z.string()
   .trim()
-  .min(1, "Country code is required")
-  .max(4, "Maximum 4 digits allowed")
-  .refine(val => /^[0-9]+$/.test(val), "Only numbers are allowed");
+  .min(1, "Please select a country code")
+  .max(5, "Maximum 4 digits allowed")
 
 const phoneNumberSchema = z.string()
   .trim()
+  .min(1, "Please type the phone number")
   .min(4, "Minimum 4 digits required")
   .max(17, "Maximum 17 digits allowed")
-  .refine(val => /^[0-9]+$/.test(val), "Only numbers are allowed");
+  .refine(val => val === '' || /^[0-9]+$/.test(val), "Only numbers are allowed");
 
 const dateSchema = z.object({
   year: z.string().min(1, "Year is required"),
@@ -107,7 +117,7 @@ const personalInfoSchema = z.object({
   selected_nationality: dropdownSchema,
   occupation: textInputSchema,
   gender: z.string().min(1, "Please select a gender"),
-  visa_no: z.string().max(22, "Maximum 22 characters allowed").optional().nullable(),
+  visa_no: visaNumberSchema,
   selected_country: dropdownSchema,
   selected_city: dropdownSchema,
   phone_no_code: phoneCodeSchema,
@@ -135,8 +145,10 @@ const validateField = (fieldName, value) => {
         schema = textInputSchema;
         break;
       case 'middle_name':
-      case 'visa_no':
         schema = optionalTextInputSchema;
+        break;
+      case 'visa_no':
+        schema = visaNumberSchema;
         break;
       case 'passport_no':
         schema = z.string().min(1, "Passport number is required").max(80, "Maximum 80 characters allowed");
@@ -156,7 +168,12 @@ const validateField = (fieldName, value) => {
         schema = phoneCodeSchema;
         break;
       case 'phone_no':
-        schema = phoneNumberSchema;
+        if (!validationErrors.value['phone_no_code']) {
+          schema = phoneNumberSchema;
+        } else {
+          delete validationErrors.value['phone_no'];
+          return;
+        }
         break;
       case 'date_of_birth':
         schema = dateSchema;
@@ -257,6 +274,12 @@ onMounted(() => {
     { label: 'UNDEFINED', value: 'UNDEFINED' }
   ];
 
+  option_country_code.value = data_country.map(c => ({
+    label: `${c.symbol}: ${c.dial_code}`,
+    value: String(c.dial_code),
+    symbol: c.symbol
+  }));
+
   count.value = 0;
 });
 
@@ -285,7 +308,8 @@ const deleteClicked = () => {
   showErrors.value = false;
 }
 
-const onSubmit = (event) => {
+const onSubmit = async (event) => {
+
   event.preventDefault();
   showErrors.value = true;
 
@@ -296,16 +320,45 @@ const onSubmit = (event) => {
     }
     return;
   }
-  router.push("/new/trip-&-accomodation-information");
+  const formData = {
+    family_name: family_name.value,
+    first_name: first_name.value,
+    middle_name: middle_name.value,
+    passport_no: passport_no.value,
+    selected_nationality: selected_nationality.value.name,
+    occupation: occupation.value,
+    gender: gender.value,
+    visa_no: visa_no.value,
+    selected_country: selected_country.value.country,
+    selected_city: selected_city.value,
+    phone_no_code: phone_no_code.value,
+    phone_no: phone_no.value,
+    date_of_birth: formattedDate.value,
+  };
+
+  try {
+    const response = await axios.post("/api/personal-info", formData);
+    console.log("Saved to server:", response.data);
+    router.push("/new/trip-&-accomodation-information");
+  } catch (error) {
+    if (error.response?.data?.errors) {
+      validationErrors.value = error.response.data.errors;
+      console.log("Server validation errors:", validationErrors.value);
+    } else {
+      console.error("Server error:", error);
+    }
+  };
 };
 
-const getErrorMessage = (fieldName) => {
-  return validationErrors.value[fieldName] || '';
-};
+  const getErrorMessage = (fieldName) => {
+    return validationErrors.value[fieldName] || '';
+  };
 
-const hasError = (fieldName) => {
-  return showErrors.value && !!validationErrors.value[fieldName];
-};
+  const hasError = (fieldName) => {
+    return showErrors.value && !!validationErrors.value[fieldName];
+  };
+
+
 </script>
 
 <template>
@@ -431,7 +484,8 @@ const hasError = (fieldName) => {
 
               <div class="form-field" :class="{ error: hasError('visa_no') }">
                 <label class="form-label">Visa No.</label>
-                <input type="text" class="form-input" :class="{ error: hasError('visa_no') }" v-model="visa_no" />
+                <input type="text" class="form-input" :class="{ error: hasError('visa_no') }" v-model="visa_no"
+                  @input="formatVisaNo" style="text-transform: uppercase;" />
                 <span v-if="hasError('visa_no')" class="error-message">
                   {{ getErrorMessage('visa_no') }}
                 </span>
@@ -460,8 +514,9 @@ const hasError = (fieldName) => {
                 <label class="form-label form-label-required">Phone No.</label>
                 <div class="phone-inputs">
                   <span class="phone-prefix">+</span>
-                  <input type="tel" class="form-input phone-code" :class="{ error: hasPhoneError() }"
-                    v-model="phone_no_code" placeholder="Code" maxlength="4">
+                  <PSelect v-model="phone_no_code" :options="option_country_code" optionLabel="label"
+                    optionValue="value" placeholder="Code" :filter="true" style="width: 170px;"
+                    :class="{ error: hasPhoneError() }" />
                   <input type="tel" class="form-input" :class="{ error: hasPhoneError() }" v-model="phone_no"
                     placeholder="Phone No." maxlength="17" />
                 </div>
