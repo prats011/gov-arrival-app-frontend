@@ -336,6 +336,8 @@ const onSubmit = async (event) => {
     date_of_birth: formattedDate.value,
   };
 
+  console.log("Form Data to be sent:", formData);
+
   try {
     const response = await axios.post("/api/personal-info", formData);
     console.log("Saved to server:", response.data);
@@ -350,13 +352,13 @@ const onSubmit = async (event) => {
   };
 };
 
-  const getErrorMessage = (fieldName) => {
-    return validationErrors.value[fieldName] || '';
-  };
+const getErrorMessage = (fieldName) => {
+  return validationErrors.value[fieldName] || '';
+};
 
-  const hasError = (fieldName) => {
-    return showErrors.value && !!validationErrors.value[fieldName];
-  };
+const hasError = (fieldName) => {
+  return showErrors.value && !!validationErrors.value[fieldName];
+};
 
 
 </script>
