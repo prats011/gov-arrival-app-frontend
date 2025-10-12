@@ -336,10 +336,8 @@ const onSubmit = async (event) => {
     date_of_birth: formattedDate.value,
   };
 
-  console.log("Form Data to be sent:", formData);
-
   try {
-    const response = await axios.post("/api/personal-info", formData);
+    const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/personal-info`, formData);
     console.log("Saved to server:", response.data);
     router.push("/new/trip-&-accomodation-information");
   } catch (error) {
