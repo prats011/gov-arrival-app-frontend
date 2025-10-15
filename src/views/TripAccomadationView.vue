@@ -42,7 +42,6 @@ const address = ref('');
 
 const validationErrors = ref({});
 const showErrors = ref(false);
-const localTripData = ref(null);
 
 const router = useRouter();
 const count = inject('globalCount', ref(0));
@@ -55,28 +54,15 @@ const textInputSchema = z.string()
 
 const dropdownSchema = z.any().refine(val => val, "Please select an option");
 
-const dateSchema = z.object({
-  year: z.string().min(1, "Year is required"),
-  month: z.string().min(1, "Month is required"),
-  day: z.string().min(1, "Day is required")
-}).refine(d => {
-  const date = new Date(d.year, d.month - 1, d.day);
-  return date.getFullYear() === +d.year &&
-    date.getMonth() === +d.month - 1 &&
-    date.getDate() === +d.day;
-}, "Please enter a valid date");
+const dateSchema = z.string()
+  .min(1, "Date is required")
+  .refine(val => !isNaN(Date.parse(val)), "Please enter a valid date");
 
-const optionalDateSchema = z.object({
-  year: z.string().nullable(),
-  month: z.string().nullable(),
-  day: z.string().nullable()
-}).refine(d => {
-  if (!d.year && !d.month && !d.day) return true;
-  const date = new Date(d.year, d.month - 1, d.day);
-  return date.getFullYear() === +d.year &&
-    date.getMonth() === +d.month - 1 &&
-    date.getDate() === +d.day;
-}, "Please enter a valid date");
+const optionalDateSchema = z.string()
+  .optional()
+  .nullable()
+  .refine(val => !val || !isNaN(Date.parse(val)), "Please enter a valid date");
+
 
 const flightNoSchema = z.string()
   .trim()
@@ -89,45 +75,52 @@ const addressSchema = z.string()
   .max(300, "Address must be at most 300 characters")
   .regex(/^[\p{L}\p{N}\p{P}\p{Zs}]+$/u, "Invalid characters in address");
 
+
 const tripInfoSchema = z.object({
-  date_of_arrival: dateSchema,
-  date_of_departure: optionalDateSchema.nullable(),
+  date_of_arrival: z.string().min(1, "Date of arrival is required"),
+  country_boarded: z.string().min(1, "Country boarded is required"),
   purpose_of_travel: z.string().min(1),
-  purpose_of_travel_other: z.string().max(80).nullable(),
+  purpose_of_travel_other: z.string().optional(),
   mode_of_travel_arrival: z.string().min(1),
   mode_of_transport_arrival: z.string().min(1),
-  mode_of_transport_arrival_other: z.string().max(80).nullable(),
+  mode_of_transport_arrival_other: z.string().optional(),
   flight_vehicle_no_arrival: z.string().min(1),
-  mode_of_travel_departure: z.string().nullable(),
-  mode_of_transport_departure: z.string().nullable(),
-  mode_of_transport_departure_other: z.string().max(80).nullable(),
-  flight_vehicle_no_departure: z.string().nullable(),
+  date_of_departure: z.string().optional().nullable(),
+  mode_of_travel_departure: z.string().optional().nullable(),
+  mode_of_transport_departure: z.string().optional().nullable(),
+  mode_of_transport_departure_other: z.string().optional().nullable(),
+  flight_vehicle_no_departure: z.string().optional().nullable(),
   type_of_accommodation: z.string().min(1),
-  type_other: z.string().max(80).nullable(),
+  type_other: z.string().optional(),
   province: z.string().min(1),
   district_area: z.string().min(1),
   sub_district: z.string().min(1),
   post_code: z.string().min(4),
-  address: z.string().min(1)
+  address: z.string().min(1),
 });
+
 
 const formattedArrivalDate = computed(() => {
   if (selected_year_of_arrival.value && selected_month_of_arrival.value && selected_day_of_arrival.value) {
-    return [selected_year_of_arrival.value, selected_month_of_arrival.value, selected_day_of_arrival.value]
-      .map(v => String(v).padStart(2, '0'))
-      .join('-');
+    const year = selected_year_of_arrival.value;
+    const month = String(selected_month_of_arrival.value).padStart(2, '0');
+    const day = String(selected_day_of_arrival.value).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
   return null;
 });
 
 const formattedDepartureDate = computed(() => {
   if (selected_year_of_departure.value && selected_month_of_departure.value && selected_day_of_departure.value) {
-    return [selected_year_of_departure.value, selected_month_of_departure.value, selected_day_of_departure.value]
-      .map(v => String(v).padStart(2, '0'))
-      .join('-');
+    const year = selected_year_of_departure.value;
+    const month = String(selected_month_of_departure.value).padStart(2, '0');
+    const day = String(selected_day_of_departure.value).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
   return null;
 });
+
+const toStringSafe = (val) => (val !== null && val !== undefined ? String(val) : '');
 
 const validateField = (fieldName, value = null) => {
   try {
@@ -167,8 +160,8 @@ const validateField = (fieldName, value = null) => {
 const validateAllFields = () => {
   try {
     const dataToValidate = {
-      date_of_arrival: { year: selected_year_of_arrival.value, month: selected_month_of_arrival.value, day: selected_day_of_arrival.value },
-      country_boarded: country_boarded.value,
+      date_of_arrival: formattedArrivalDate.value,
+      country_boarded: toStringSafe(country_boarded.value),
       purpose_of_travel: purpose_of_travel.value,
       purpose_of_travel_other: purpose_of_travel_other.value,
       mode_of_travel_arrival: mode_of_travel_arrival.value,
@@ -183,7 +176,6 @@ const validateAllFields = () => {
       post_code: String(post_code.value),
       address: address.value
     };
-
     const hasDepartureData = selected_year_of_departure.value ||
       selected_month_of_departure.value ||
       selected_day_of_departure.value ||
@@ -192,11 +184,7 @@ const validateAllFields = () => {
       flight_vehicle_no_departure.value;
 
     if (hasDepartureData) {
-      dataToValidate.date_of_departure = {
-        year: selected_year_of_departure.value,
-        month: selected_month_of_departure.value,
-        day: selected_day_of_departure.value
-      };
+      dataToValidate.date_of_departure = formattedDepartureDate.value;
       dataToValidate.mode_of_travel_departure = mode_of_travel_departure.value;
       dataToValidate.mode_of_transport_departure = mode_of_transport_departure.value;
       dataToValidate.mode_of_transport_departure_other = mode_of_transport_departure_other.value;
@@ -219,7 +207,7 @@ const watchField = (field, extraHandler) => watch(field, (v) => {
   validateField(field.key || field, v);
 });
 
-watchField(country_boarded);
+
 watchField(purpose_of_travel, v => { if (v !== 'Others') purpose_of_travel_other.value = ''; });
 watchField(purpose_of_travel_other, v => { if (purpose_of_travel.value === 'Others') validateField('purpose_of_travel_other', v); });
 watchField(mode_of_travel_arrival);
@@ -242,10 +230,12 @@ onMounted(() => {
   option_year.value = data_months.years;
   option_country.value = data_country.map(c => ({
     country: `${c.symbol}: ${c.country}`,
-    symbol: c.symbol, cities: c.cities
+    symbol: c.symbol,
+    cities: c.cities
   }));
   count.value = 1;
 });
+
 
 const onSubmit = (event) => {
   event.preventDefault();
@@ -254,26 +244,28 @@ const onSubmit = (event) => {
     return;
   }
 
-  localTripData.value = {
-    date_of_arrival: formattedArrivalDate.value,
-    date_of_departure: formattedDepartureDate.value,
-    country_boarded: country_boarded.value,
-    purpose_of_travel: purpose_of_travel.value === 'Others' ? purpose_of_travel_other.value : purpose_of_travel.value,
-    mode_of_travel_arrival: mode_of_travel_arrival.value,
-    mode_of_transport_arrival: mode_of_transport_arrival.value === 'Others' ? mode_of_transport_arrival_other.value : mode_of_transport_arrival.value,
-    flight_vehicle_no_arrival: flight_vehicle_no_arrival.value,
-    mode_of_travel_departure: mode_of_travel_departure.value,
-    mode_of_transport_departure: mode_of_transport_departure.value === 'Others' ? mode_of_transport_departure_other.value : mode_of_transport_departure.value,
-    flight_vehicle_no_departure: flight_vehicle_no_departure.value,
-    type_of_accommodation: type_of_accommodation.value === 'Others' ? type_other.value : type_of_accommodation.value,
-    province: province.value,
-    district_area: district_area.value,
-    sub_district: sub_district.value,
-    post_code: post_code.value,
-    address: address.value
-  };
+  const resolveOther = (main, other) => (main === 'Others' ? other || '' : main);
 
-  console.log("Trip saved locally:", localTripData.value);
+  const tripFormData = {
+    date_of_arrival: toStringSafe(formattedArrivalDate.value),
+    date_of_departure: toStringSafe(formattedDepartureDate.value)|| null,
+    country_boarded: toStringSafe(country_boarded.value),
+    purpose_of_travel: toStringSafe(resolveOther(purpose_of_travel.value, purpose_of_travel_other.value)),
+    mode_of_travel_arrival: toStringSafe(mode_of_travel_arrival.value),
+    mode_of_transport_arrival: toStringSafe(resolveOther(mode_of_transport_arrival.value, mode_of_transport_arrival_other.value)),
+    flight_vehicle_no_arrival: toStringSafe(flight_vehicle_no_arrival.value),
+    mode_of_travel_departure: toStringSafe(mode_of_travel_departure.value)|| null,
+    mode_of_transport_departure: toStringSafe(resolveOther(mode_of_transport_departure.value, mode_of_transport_departure_other.value))|| null,
+    flight_vehicle_no_departure: toStringSafe(flight_vehicle_no_departure.value)|| null,
+    type_of_accommodation: toStringSafe(resolveOther(type_of_accommodation.value, type_other.value)),
+    province: province.value,
+    district_area: toStringSafe(district_area.value),
+    sub_district: toStringSafe(sub_district.value),
+    post_code: post_code.value,
+    address: toStringSafe(address.value)
+  };
+  sessionStorage.setItem('tripInfo', JSON.stringify(tripFormData));
+  console.log("Data saved locally:", JSON.parse(sessionStorage.getItem('tripInfo')));
   router.push('/new/health-declaration');
 };
 
@@ -337,12 +329,12 @@ const getTransportOptions = (travelMode) => {
                   </select>
                 </div>
                 <span v-if="hasError('date_of_arrival')" class="error-message">{{ getErrorMessage('date_of_arrival')
-                }}</span>
+                  }}</span>
               </div>
 
               <div class="form-field" :class="{ error: hasError('country_boarded') }">
                 <label class="form-label form-label-required">Country/Territory where you Boarded</label>
-                <PSelect v-model="country_boarded" :options="option_country" optionLabel="country"
+                <PSelect v-model="country_boarded" :options="option_country" optionLabel="country" optionValue="country"
                   placeholder="Select a Country" :filter="true" filterBy="country"
                   :class="{ error: hasError('country_boarded') }" />
                 <span v-if="hasError('country_boarded')" class="error-message">
@@ -370,10 +362,10 @@ const getTransportOptions = (travelMode) => {
                 <input type="text" v-model="purpose_of_travel_other" class="form-input" placeholder="Please specify"
                   :disabled="purpose_of_travel !== 'Others'" />
                 <span v-if="hasError('purpose_of_travel')" class="error-message">{{ getErrorMessage('purpose_of_travel')
-                }}</span>
+                  }}</span>
                 <span v-if="hasError('purpose_of_travel_other')" class="error-message">{{
                   getErrorMessage('purpose_of_travel_other')
-                }}</span>
+                  }}</span>
               </div>
 
               <div class="form-field" :class="{ error: hasError('mode_of_travel_arrival') }">
@@ -394,7 +386,7 @@ const getTransportOptions = (travelMode) => {
                 </div>
                 <span v-if="hasError('mode_of_travel_arrival')" class="error-message">{{
                   getErrorMessage('mode_of_travel_arrival')
-                }}</span>
+                  }}</span>
               </div>
 
               <div class="form-field" :class="{ error: hasError('mode_of_transport_arrival') }">
@@ -411,7 +403,7 @@ const getTransportOptions = (travelMode) => {
                 </div>
                 <span v-if="hasError('mode_of_transport_arrival')" class="error-message">{{
                   getErrorMessage('mode_of_transport_arrival')
-                }}</span>
+                  }}</span>
                 <span v-if="hasError('mode_of_transport_arrival_other')" class="error-message">{{
                   getErrorMessage('mode_of_transport_arrival_other') }}</span>
               </div>
@@ -536,14 +528,14 @@ const getTransportOptions = (travelMode) => {
                   <label class="form-label form-label-required">District/ Area</label>
                   <input type="text" v-model="district_area" class="form-input" />
                   <span v-if="hasError('district_area')" class="error-message">{{ getErrorMessage('district_area')
-                    }}</span>
+                  }}</span>
                 </div>
 
                 <div class="form-field" :class="{ error: hasError('sub_district') }">
                   <label class="form-label form-label-required">Sub-district / Sub-Area</label>
                   <input type="text" v-model="sub_district" class="form-input" />
                   <span v-if="hasError('sub_district')" class="error-message">{{ getErrorMessage('sub_district')
-                    }}</span>
+                  }}</span>
                 </div>
 
                 <div class="form-field" :class="{ error: hasError('post_code') }">

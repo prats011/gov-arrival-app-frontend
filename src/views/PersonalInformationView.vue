@@ -2,7 +2,7 @@
 import { ref, onMounted, inject, watch, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { z } from 'zod';
-import axios from "axios";
+//import axios from "axios";
 import ProgressBar from '@/components/ProgressBar.vue';
 import infoIcon from '/personalIcon.svg';
 import PassportIcon from '/worldIcon.svg';
@@ -46,13 +46,13 @@ const textInputSchema = z.string()
   .trim()
   .min(1, "This field is required")
   .max(80, "Maximum 80 characters allowed")
-  .regex(/^[\p{L}\s\-'\.]+$/u, "No special characters are allowed");
+  .regex(/^[\p{L}\s\-'.]+$/u, "No special characters are allowed");
 
 const optionalTextInputSchema = z.string()
   .trim()
   .max(80, "Maximum 80 characters allowed")
   .refine(val => val === '' || !/[0-9]/.test(val), "Numbers are not allowed")
-  .refine(val => val === '' || /^[A-Za-z\s\-'\.]+$/.test(val), "Only letters A-Z are allowed.")
+  .refine(val => val === '' || /^[A-Za-z\s\-'.]+$/.test(val), "Only letters A-Z are allowed.")
   .optional()
   .nullable();
 
@@ -177,11 +177,7 @@ const validateField = (fieldName, value) => {
         break;
       case 'date_of_birth':
         schema = dateSchema;
-        value = {
-          year: selected_year.value,
-          month: selected_month.value,
-          day: selected_day.value
-        };
+        value = formattedDate.value;
         break;
       default:
         return;
@@ -289,15 +285,15 @@ watch(selected_country, () => {
 });
 
 const deleteClicked = () => {
-  family_name.value = '';
-  first_name.value = '';
-  middle_name.value = '';
-  passport_no.value = '';
-  occupation.value = '';
-  gender.value = '';
-  visa_no.value = '';
-  phone_no.value = '';
-  phone_no_code.value = '';
+  family_name.value = null;
+  first_name.value = null;
+  middle_name.value = null;
+  passport_no.value = null;
+  occupation.value = null;
+  gender.value = null;
+  visa_no.value = null;
+  phone_no.value = null;
+  phone_no_code.value = null;
   selected_year.value = '';
   selected_month.value = '';
   selected_day.value = '';
@@ -336,18 +332,21 @@ const onSubmit = async (event) => {
     date_of_birth: formattedDate.value,
   };
 
-  try {
-    const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/personal-info`, formData);
-    console.log("Saved to server:", response.data);
-    router.push("/new/trip-&-accomodation-information");
-  } catch (error) {
-    if (error.response?.data?.errors) {
-      validationErrors.value = error.response.data.errors;
-      console.log("Server validation errors:", validationErrors.value);
-    } else {
-      console.error("Server error:", error);
-    }
-  };
+  sessionStorage.setItem('personalInfo', JSON.stringify(formData));
+  console.log("Data saved locally:", JSON.parse(sessionStorage.getItem('personalInfo')));
+  router.push("/new/trip-&-accomodation-information");
+  /*   try {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/personal-info`, formData);
+      console.log("Saved to server:", response.data);
+      router.push("/new/trip-&-accomodation-information");
+    } catch (error) {
+      if (error.response?.data?.errors) {
+        validationErrors.value = error.response.data.errors;
+        console.log("Server validation errors:", validationErrors.value);
+      } else {
+        console.error("Server error:", error);
+      }
+    }; */
 };
 
 const getErrorMessage = (fieldName) => {
